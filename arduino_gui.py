@@ -1,4 +1,4 @@
-#  file: junk_gui.py
+#  file: arduino_gui.py
 import PySimpleGUI as sg
 import sampler
 import pdb
@@ -29,7 +29,7 @@ controls = [
     [sg.Text("TS"), sg.Input("", size=(25, 1), key="TS")]
 ]
 
-window = sg.Window("ChickenCoop", controls, return_keyboard_events=True,
+window = sg.Window("ArduinoPins", controls, return_keyboard_events=True,
                    size=(250, 80), finalize=True, keep_on_top=True)
 
 

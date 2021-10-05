@@ -66,7 +66,7 @@ def fake_hash_password(password: str):
     return "fakehashed" + password
 
 
-fake_users_db = {
+users_db = {
     "garth": {
         "username": "garth",
         "full_name": "Garth John Martinsen",
@@ -130,7 +130,7 @@ def fake_decode_token(token):
 
 @app.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user_dict = fake_users_db.get(form_data.username)
+    user_dict = users_db.get(form_data.username)
     if not user_dict:
         raise HTTPException(
             status_code=400, detail="Incorrect username or password")
@@ -168,7 +168,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         token_data = TokenData(username=username)
     except JWTError:
         raise credentials_exception
-    user = get_user(fake_users_db, username=token_data.username)
+    user = get_user(users_db, username=token_data.username)
     if user is None:
         raise credentials_exception
     return user
@@ -192,7 +192,7 @@ def authenticate_user(fake_db, username: str, password: str):
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):  # noqa: E501
     user = authenticate_user(
-        fake_users_db, form_data.username, form_data.password)
+        users_db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

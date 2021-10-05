@@ -1,6 +1,6 @@
 # file: config.py
 
-src = 'uno'
+src = 'uno' #  what microcontroller is generating the signals
 
 input_names = ["A1", "D2", "D3"]  # what pins are going to be sampled for this app  # noqa: E501
 
