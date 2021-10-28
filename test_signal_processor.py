@@ -5,8 +5,10 @@ import mock_config
 import datetime
 import signal_processor
 import pdb
-import requests
-"""
+from pyfirmata import Arduino, util, Pin
+
+
+""" ======Testing requirements==========
 X indicates that a test exists and passes. NA means didn't bother.
 InputPin:
     X def __init__(self, name):
@@ -93,7 +95,7 @@ class MockResponse:
 
 
 @pytest.fixture
-def mocked_response():
+def mocked_http_response():
     return MockResponse('{"test": "passed"}', 200)
 
 
@@ -119,16 +121,23 @@ def mockutil(mocker):
 def mock_board(mockArduino):
     return mockArduino(mock_config.usb_port)
 
+@pytest.fixture
+def real_proc(mockdatetime):
+    proc = signal_processor.ArduinoSignalProcessor()
+    proc.initialize(mock_config, Arduino, 
+        util, mockdatetime.timestamp())
+    return proc
+
 
 @pytest.fixture
-def sig_proc(mocker, mockArduino, mockutil, mockdatetime, mock_board):
-    sig_proc = signal_processor.ArduinoSignalProcessor()
-    sig_proc.initialize(mock_config, mockArduino,
+def mock_proc(mocker, mockArduino, mockutil, mockdatetime, mock_board):
+    mock_proc = signal_processor.ArduinoSignalProcessor()
+    mock_proc.initialize(mock_config, mockArduino,
                         mockutil, mockdatetime.timestamp())
-    sig_proc.src = 'test'
-    sig_proc.board = mockArduino(mock_config.usb_port)
+    mock_proc.src = 'test'
+    mock_proc.board = mockArduino(mock_config.usb_port)
 
-    return sig_proc
+    return mock_proc
 
 
 @pytest.fixture
@@ -152,45 +161,51 @@ def test_init_InputPind():
     assert(ip.sig_type == 'digital' and ip.pin == 12 and ip.value == 0)
 
 
-def test_initialize(mocker, sig_proc, mockdatetime):
-    assert sig_proc.src == mock_config.src
-    assert sig_proc.db_interval == mock_config.initial_db_interval
-    assert sig_proc.db_url == mock_config.db_url
-    assert sig_proc.analog_num == mock_config.initial_analog_num
-    assert sig_proc.digital_num == mock_config.digital_num
-    assert sig_proc.analog_num_lookup == mock_config.analog_num_lookup
-    assert sig_proc.db_interval_lookup == mock_config.db_interval_lookup
-    assert sig_proc.analog_3sigma == mock_config.analog_3sigma
-    assert sig_proc.db_file_path == mock_config.db_file_path
-    assert sig_proc.input_pins == mock_config.input_names
-    assert sig_proc.current_state.get('A1') == 0.0
-    assert sig_proc.current_state.get("D2") == 0
-    assert sig_proc.current_state.get("D3") == 0
-    assert sig_proc.former_state.get("A1") == 0.0
-    assert sig_proc.former_state.get("D2") == 0
-    assert sig_proc.former_state.get("D3") == 0
-    assert sig_proc.db_saved == mockdatetime.timestamp()
-    assert len(sig_proc.apins) == 1
-    assert len(sig_proc.dpins) == 2
+def test_repr():
+    ip = signal_processor.InputPin('D12')
+    r = str(ip)
+    assert r == 'digital 12 0'
 
 
-def test_setup_analog(sig_proc, mock_board):
+def test_initialize(mocker, mock_proc, mockdatetime):
+    assert mock_proc.src == mock_config.src
+    assert mock_proc.db_interval == mock_config.initial_db_interval
+    assert mock_proc.db_url == mock_config.db_url
+    assert mock_proc.analog_num == mock_config.initial_analog_num
+    assert mock_proc.digital_num == mock_config.digital_num
+    assert mock_proc.analog_num_lookup == mock_config.analog_num_lookup
+    assert mock_proc.db_interval_lookup == mock_config.db_interval_lookup
+    assert mock_proc.analog_3sigma == mock_config.analog_3sigma
+    assert mock_proc.db_file_path == mock_config.db_file_path
+    assert mock_proc.input_pins == mock_config.input_names
+    assert mock_proc.current_state.get('A1') == 0.0
+    assert mock_proc.current_state.get("D2") == 0
+    assert mock_proc.current_state.get("D3") == 0
+    assert mock_proc.former_state.get("A1") == 0.0
+    assert mock_proc.former_state.get("D2") == 0
+    assert mock_proc.former_state.get("D3") == 0
+    assert mock_proc.db_saved == mockdatetime.timestamp()
+    assert len(mock_proc.apins) == 1
+    assert len(mock_proc.dpins) == 2
+
+
+def test_setup_analog(mock_proc, mock_board):
     INPUT = 0
-    sig_proc.board = mock_board
-    sig_proc.apins = [signal_processor.InputPin('A1')]
+    mock_proc.board = mock_board
+    mock_proc.apins = [signal_processor.InputPin('A1')]
 
-    sig_proc.setup_analog(0)
+    mock_proc.setup_analog(0)
 
     assert mock_board.analog[1].mode == INPUT
     assert mock_board.analog[1].value == 0
     assert mock_board.analog[1].reporting
 
 
-def test_setup_digital(sig_proc, mock_board):
+def test_setup_digital(mock_proc, mock_board):
     INPUT = 0  # INPUT
-    sig_proc.board = mock_board
-    sig_proc.dpins = [signal_processor.InputPin("D2"), signal_processor.InputPin("D3")]  # noqa: E501
-    sig_proc.setup_digital(INPUT)
+    mock_proc.board = mock_board
+    mock_proc.dpins = [signal_processor.InputPin("D2"), signal_processor.InputPin("D3")]  # noqa: E501
+    mock_proc.setup_digital(INPUT)
 
     assert mock_board.digital[2].mode == INPUT
     assert mock_board.digital[2].value == 0
@@ -199,30 +214,30 @@ def test_setup_digital(sig_proc, mock_board):
     assert mock_board.digital[3].value == 0
     assert mock_board.digital[3].reporting
 
-def test_set_db_interval(sig_proc):
+def test_set_db_interval(mock_proc):
 
-    sig_proc.db_interval_lookup = mock_config.db_interval_lookup
+    mock_proc.db_interval_lookup = mock_config.db_interval_lookup
 
-    sig_proc.set_db_interval(25)
-    assert sig_proc.db_interval == 30
-    sig_proc.set_db_interval(923)
-    assert sig_proc.db_interval == 30
-    sig_proc.set_db_interval(250)
-    assert sig_proc.db_interval == 30
+    mock_proc.set_db_interval(25)
+    assert mock_proc.db_interval == 30
+    mock_proc.set_db_interval(923)
+    assert mock_proc.db_interval == 30
+    mock_proc.set_db_interval(250)
+    assert mock_proc.db_interval == 30
 
 
-def test_set_analog_num(sig_proc):
-    sig_proc.analog_num_lookup = mock_config.analog_num_lookup
+def test_set_analog_num(mock_proc):
+    mock_proc.analog_num_lookup = mock_config.analog_num_lookup
     # input values are a2d counts
-    sig_proc.set_analog_num(25)
-    assert sig_proc.analog_num == 10
-    sig_proc.set_analog_num(250)
-    assert sig_proc.analog_num == 10
-    sig_proc.set_analog_num(950)
-    assert sig_proc.analog_num == 10
+    mock_proc.set_analog_num(25)
+    assert mock_proc.analog_num == 10
+    mock_proc.set_analog_num(250)
+    assert mock_proc.analog_num == 10
+    mock_proc.set_analog_num(950)
+    assert mock_proc.analog_num == 10
 
 
-def test_collect_inputs(sig_proc, mocker):
+def test_collect_inputs(mock_proc, mocker):
     mocker.patch("signal_processor.ArduinoSignalProcessor.smooth_analog",
                  return_value=307)
     mocker.patch("signal_processor.ArduinoSignalProcessor.smooth_digital",
@@ -233,19 +248,39 @@ def test_collect_inputs(sig_proc, mocker):
     d2 = 2
     d3 = 3
     a2d = 307
-
-    sig_proc.collect_inputs()
-
-    assert sig_proc.smooth_analog.call_count == 1
-    assert sig_proc.smooth_digital.call_count == 2
-    assert sig_proc.smooth_analog.called_once_with(a1)
-    assert sig_proc.smooth_digital.called_with(d2)
-    assert sig_proc.smooth_digital.called_with(d3)
-    assert sig_proc.set_analog_num.called_with(a2d)
-    assert sig_proc.set_db_interval.called_with(a2d)
     # pdb.set_trace()
-    assert sig_proc.current_state['A1'] == 307
-    assert sig_proc.current_state['D2'] == 1
+
+    mock_proc.collect_inputs()
+
+    assert mock_proc.smooth_analog.call_count == 1
+    assert mock_proc.smooth_digital.call_count == 2
+    assert mock_proc.smooth_analog.called_once_with(a1)
+    assert mock_proc.smooth_digital.called_with(d2)
+    assert mock_proc.smooth_digital.called_with(d3)
+    assert mock_proc.set_analog_num.called_with(a2d)
+    assert mock_proc.set_db_interval.called_with(a2d)
+    # pdb.set_trace()
+    assert mock_proc.current_state['A1'] == 307
+    assert mock_proc.current_state['D2'] == 1
+
+
+def test_get_mock_reader(mock_readers, mocker):
+    reader = mock_readers.get_reader('analog', 1, mock_readers.board)
+
+    assert type(reader) == read_analog_mock
+   
+    reader = mock_readers.get_reader('digital', 2, mock_readers.board)
+    assert type(reader) == read_digital_mock 
+
+def test_get_real_reader(real_proc):
+    """
+    In order for this test to work, the usb must be plugged into the arduino
+    """
+    reader = real_proc.get_reader('analog',1, real_proc.board)
+    assert type(reader)== Pin
+ 
+    reader = real_proc.get_reader('digital',2, real_proc.board)
+    assert type(reader)==  Pin
 
 
 def test_smooth_analog(mock_readers, mocker):
@@ -255,7 +290,7 @@ def test_smooth_analog(mock_readers, mocker):
     so that when the summing is complete, the _sum=3. This gives an average
     of 0.3 when analog_num=10. Converting 0.3 to a2d by multiplying by 1023
     yields an a2d of 307. 
-   
+
     mocker.patch("signal_processor.ArduinoSignalProcessor.smooth_analog",
                  return_value=307)
     mocker.patch("signal_processor.ArduinoSignalProcessor.smooth_digital",
@@ -267,6 +302,7 @@ def test_smooth_analog(mock_readers, mocker):
     for p in apins:
         val = mock_readers.smooth_analog(p.pin, 3)
         assert val == 307
+  
 
 
 def test_smooth_digital(mock_readers):
@@ -281,35 +317,48 @@ def test_smooth_digital(mock_readers):
     assert val[3] == 0
 
 
-def test_changed(sig_proc, mockdatetime):
-    sig_proc.db_saved = mockdatetime.timestamp()
-
-    assert sig_proc.changed(mockdatetime.timestamp() + 90)
-
-
-def test_json_encode(sig_proc, mockdatetime):
+def test_changed(mock_proc, mockdatetime):
+    mock_proc.db_saved = mockdatetime.timestamp()
+    
+    mock_proc.former_state['A1']= 300
+    mock_proc.former_state['D2']= 1
+    mock_proc.former_state['D3']= 0
+    mock_proc.current_state['A1']= 307
+    mock_proc.current_state['D2']= 0
+    mock_proc.current_state['D3']= 1
+    
     # pdb.set_trace()
-    sig_proc.current_state['A1'] = 307
-    sig_proc.current_state['D2'] = 1
-    sig_proc.current_state['D3'] = 0
+    assert mock_proc.changed(mockdatetime.timestamp() + 90)
 
-    jsn = sig_proc.json_encode(mockdatetime)
+    assert mock_proc.former_state['A1']== 307
+    assert mock_proc.former_state['D2']== 0
+    assert mock_proc.former_state['D3']== 1
+    assert mock_proc.former_state ==  mock_proc.current_state
+
+def test_json_encode(mock_proc, mockdatetime):
+    # pdb.set_trace()
+    mock_proc.current_state['A1'] = 307
+    mock_proc.current_state['D2'] = 1
+    mock_proc.current_state['D3'] = 0
+
+    jsn = mock_proc.json_encode(mockdatetime)
     assert jsn == '{"ts":"2021-01-01 00:00:00","src": "test","A1": 307,"D2": 1,"D3": 0}'  # noqa: E501
 
 
-def test_update_db(mocker, sig_proc, mockdatetime, mocked_response):
+def test_update_db(mocker, mock_proc, mockdatetime, mocked_http_response):
     '''
     mocker.patch('signal_processor.ArduinoSignalProcessor.json_encode',
                  return_value='{"good":"encoding"}')
                  '''
-    mocker.patch('requests.post', return_value=mocked_response)
-    sig_proc.current_state['A1'] = 307
-    sig_proc.current_state['D2'] = 1
-    sig_proc.current_state['D3'] = 0
+    mocker.patch('signal_processor.requests.post',
+                 return_value=mocked_http_response)
+    mock_proc.current_state['A1'] = 307
+    mock_proc.current_state['D2'] = 1
+    mock_proc.current_state['D3'] = 0
 
-    response = sig_proc.update_db(mockdatetime)
+    response = mock_proc.update_db(mockdatetime)
 
-    # sig_proc.json_encode.assert_called_once()
-    requests.post.called_once()
+    # mock_proc.json_encode.assert_called_once()
+    signal_processor.requests.post.called_once()
     assert response.status_code == 200
     assert response.json() == '{"test": "passed"}'
