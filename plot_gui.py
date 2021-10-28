@@ -58,7 +58,6 @@ def do_plot(how, many):
     if response.ok:
         pins = response.json()
         num = len(pins)
-        # pdb.set_trace()
         pins.sort(key=my_sort)
         date = pins[0]['ts'][0:10]
         window['-Date-'].update(f'Date: {date}')
@@ -82,7 +81,6 @@ def do_plot(how, many):
             d2 = y2
             d3 = y3
 
-        # pdb.set_trace()
     fig, ax = plt.subplots()
     DPI = fig.get_dpi()
     # --you have to play with this size to reduce the movement error when the mouse hovers over the figure, it's close to canvas size  # noqa: E501
@@ -172,5 +170,5 @@ while True:
     if event == 'Plot':
         do_plot('raw', 0)
     if event == 'Plot_Avg':
-        do_plot('avg', 10)
+        do_plot('avg', values['-Num-'])
 window.close()
