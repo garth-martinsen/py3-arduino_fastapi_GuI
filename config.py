@@ -26,3 +26,11 @@ digital_num = 5
 usb_port = '/dev/cu.usbmodem14301'
 
 db_url = 'http://127.0.0.1:8000/pins/'
+# following is for info only. Change it for your path. The actual path is determined by startup of server.  # noqa: E501
+db_file_path = '/Users/garth/Programming/python3/py3-arduino_fastapi_GuI/sql_app/signals.db'  # noqa: E501
+
+# for later work using nosql on a free public platform, ids are for me only
+deta_db_url = 'https://sfwfom.deta.dev'
+deta_projectId = 'xxxxxxx'
+deta_microId = 'xxxxxxxxxxxxxxxxxxxx'
+
