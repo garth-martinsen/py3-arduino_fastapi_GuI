@@ -16,10 +16,11 @@ def get_data():
 
 def update_controls(data):
     # Only show ts to the second
+
     window["TS"].update(data["ts"][:-7])
-    window["A1"].update(data["A1"].value)
-    window["D2"].update(data["D2"].value)
-    window["D3"].update(data["D3"].value)
+    window["A1"].update(data["A1"])
+    window["D2"].update(data["D2"])
+    window["D3"].update(data["D3"])
 
 
 controls = [
