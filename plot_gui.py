@@ -170,5 +170,5 @@ while True:
     if event == 'Plot':
         do_plot('raw', 0)
     if event == 'Plot_Avg':
-        do_plot('avg', values['-Num-'])
+        do_plot('avg', int(values['-Num-']))
 window.close()
