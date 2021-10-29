@@ -47,16 +47,20 @@ class read_analog_mock:
     leave the central zero in the sequence, else remove it. This will always
     result in sum = 0 , hence average = 0. The actual A2d read returns a 
     fraction between 0 and 1. If the sequence is shifted to
-    the right 300 and then each element is divided by 1023, fractiions result. 
+    the right 300 and then each element is divided by 1023, fractions result. 
     The average of the  fractions multiplied by 1023 in the code will equal 
     a2d count of 300. This value should be used in the tests.
     """
 
     def __init__(self, num, pin):
         n1 = num // 2
-        n2 = num - n1 + 1
+        n2 = num - n1 + 1   # need to add 1 for range behavior
         self.num = num
-        self.a = [(x + 300) / 1023 for x in range(-n1 + 3, n2 + 3) if x != 0]
+        # if even exclude zero, else retain it.
+        if num % 2 == 0:
+            self.a = [(x + 300) / 1023 for x in range(-n1, n2) if x != 0]
+        else:
+            self.a = [(x + 300) / 1023 for x in range(-n1, n2)]
         self.an = gen(self.a)
 
     def read(self):
@@ -306,7 +310,7 @@ def test_smooth_analog(mock_readers, mocker):
     apins = [signal_processor.InputPin('A1')]
     for p in apins:
         val = mock_readers.smooth_analog(p.pin)
-        assert val == 303
+        assert val == 300
 
 
 def test_smooth_digital(mock_readers):
