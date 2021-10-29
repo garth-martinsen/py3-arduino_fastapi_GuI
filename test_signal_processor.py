@@ -12,7 +12,7 @@ from pyfirmata import Arduino, util, Pin
 X indicates that a test exists and passes. NA means didn't bother.
 InputPin:
     X def __init__(self, name):
-    NA  def __repr__(self):
+    X def __repr__(self):
 
 ArduinoSignalProcessor:
     X def initialize(self, config, Arduino, util, timestamp):
@@ -45,15 +45,18 @@ class read_analog_mock:
     for now even tho the pin is passed in it does not affect the mock
     Design: Split the samples symetrically around zero. If num is odd,
     leave the central zero in the sequence, else remove it. This will always
-    result in sum = 0 , hence average = 0. 
+    result in sum = 0 , hence average = 0. The actual A2d read returns a 
+    fraction between 0 and 1. If the sequence is shifted to
+    the right 300 and then each element is divided by 1023, fractiions result. 
+    The average of the  fractions multiplied by 1023 in the code will equal 
+    a2d count of 300. This value should be used in the tests.
     """
 
     def __init__(self, num, pin):
         n1 = num // 2
         n2 = num - n1 + 1
-        self.a = [x for x in range(- n1, n2)]
-        if num % 2 == 0:
-            self.a.remove(0)
+        self.num = num
+        self.a = [(x + 300) / 1023 for x in range(-n1 + 3, n2 + 3) if x != 0]
         self.an = gen(self.a)
 
     def read(self):
@@ -121,11 +124,12 @@ def mockutil(mocker):
 def mock_board(mockArduino):
     return mockArduino(mock_config.usb_port)
 
+
 @pytest.fixture
 def real_proc(mockdatetime):
     proc = signal_processor.ArduinoSignalProcessor()
-    proc.initialize(mock_config, Arduino, 
-        util, mockdatetime.timestamp())
+    proc.initialize(mock_config, Arduino,
+                    util, mockdatetime.timestamp())
     return proc
 
 
@@ -133,7 +137,7 @@ def real_proc(mockdatetime):
 def mock_proc(mocker, mockArduino, mockutil, mockdatetime, mock_board):
     mock_proc = signal_processor.ArduinoSignalProcessor()
     mock_proc.initialize(mock_config, mockArduino,
-                        mockutil, mockdatetime.timestamp())
+                         mockutil, mockdatetime.timestamp())
     mock_proc.src = 'test'
     mock_proc.board = mockArduino(mock_config.usb_port)
 
@@ -268,19 +272,20 @@ def test_get_mock_reader(mock_readers, mocker):
     reader = mock_readers.get_reader('analog', 1, mock_readers.board)
 
     assert type(reader) == read_analog_mock
-   
+
     reader = mock_readers.get_reader('digital', 2, mock_readers.board)
-    assert type(reader) == read_digital_mock 
+    assert type(reader) == read_digital_mock
+
 
 def test_get_real_reader(real_proc):
     """
     In order for this test to work, the usb must be plugged into the arduino
     """
-    reader = real_proc.get_reader('analog',1, real_proc.board)
-    assert type(reader)== Pin
- 
-    reader = real_proc.get_reader('digital',2, real_proc.board)
-    assert type(reader)==  Pin
+    reader = real_proc.get_reader('analog', 1, real_proc.board)
+    assert type(reader) == Pin
+
+    reader = real_proc.get_reader('digital', 2, real_proc.board)
+    assert type(reader) == Pin
 
 
 def test_smooth_analog(mock_readers, mocker):
@@ -300,9 +305,8 @@ def test_smooth_analog(mock_readers, mocker):
     mocker.patch("signal_processor.ArduinoSignalProcessor.set_db_interval")
     apins = [signal_processor.InputPin('A1')]
     for p in apins:
-        val = mock_readers.smooth_analog(p.pin, 3)
-        assert val == 307
-  
+        val = mock_readers.smooth_analog(p.pin)
+        assert val == 303
 
 
 def test_smooth_digital(mock_readers):
@@ -319,21 +323,22 @@ def test_smooth_digital(mock_readers):
 
 def test_changed(mock_proc, mockdatetime):
     mock_proc.db_saved = mockdatetime.timestamp()
-    
-    mock_proc.former_state['A1']= 300
-    mock_proc.former_state['D2']= 1
-    mock_proc.former_state['D3']= 0
-    mock_proc.current_state['A1']= 307
-    mock_proc.current_state['D2']= 0
-    mock_proc.current_state['D3']= 1
-    
+
+    mock_proc.former_state['A1'] = 300
+    mock_proc.former_state['D2'] = 1
+    mock_proc.former_state['D3'] = 0
+    mock_proc.current_state['A1'] = 307
+    mock_proc.current_state['D2'] = 0
+    mock_proc.current_state['D3'] = 1
+
     # pdb.set_trace()
     assert mock_proc.changed(mockdatetime.timestamp() + 90)
 
-    assert mock_proc.former_state['A1']== 307
-    assert mock_proc.former_state['D2']== 0
-    assert mock_proc.former_state['D3']== 1
-    assert mock_proc.former_state ==  mock_proc.current_state
+    assert mock_proc.former_state['A1'] == 307
+    assert mock_proc.former_state['D2'] == 0
+    assert mock_proc.former_state['D3'] == 1
+    assert mock_proc.former_state == mock_proc.current_state
+
 
 def test_json_encode(mock_proc, mockdatetime):
     # pdb.set_trace()
@@ -346,10 +351,6 @@ def test_json_encode(mock_proc, mockdatetime):
 
 
 def test_update_db(mocker, mock_proc, mockdatetime, mocked_http_response):
-    '''
-    mocker.patch('signal_processor.ArduinoSignalProcessor.json_encode',
-                 return_value='{"good":"encoding"}')
-                 '''
     mocker.patch('signal_processor.requests.post',
                  return_value=mocked_http_response)
     mock_proc.current_state['A1'] = 307

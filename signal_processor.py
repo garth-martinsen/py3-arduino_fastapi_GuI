@@ -131,7 +131,7 @@ class ArduinoSignalProcessor:
         Sets the analog_num and db_interval, each by lookup functions(a2d)
         """
         for apin in self.apins:
-            a2d = self.smooth_analog(apin.pin, 0)
+            a2d = self.smooth_analog(apin.pin)
             # sets values as functions of a2d
             self.set_analog_num(a2d)
             self.set_db_interval(a2d)
@@ -152,12 +152,12 @@ class ArduinoSignalProcessor:
             reader =  board.analog[pin]
         return reader
 
-    def smooth_analog(self, pin, bias):
+    def smooth_analog(self, pin):
         """
         RETURNS: smoothed value for a2d converted to A2D counts
-        pin is an int [0-5] .
+        analog pin numbers can be any of [0-5] .
         """
-        _sum = 0 + bias
+        _sum = 0
         analog = self.get_reader('analog', pin, self.board)
         for i in range(self.analog_num):
             _sum += analog.read()
